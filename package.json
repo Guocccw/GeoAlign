@@ -1,0 +1,32 @@
+{
+  "name": "geoalign",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "backend": ".venv/bin/python -m uvicorn backend.server:app --host 127.0.0.1 --port 8765",
+    "backend:setup": "python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.3.5",
+    "comlink": "^4.4.2",
+    "geotiff": "^3.0.5",
+    "jszip": "^3.10.1",
+    "proj4": "^2.20.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.69.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.1.0"
+  }
+}
