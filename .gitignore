@@ -13,6 +13,9 @@ dist
 dist-ssr
 *.local
 
+# 后端运行时导出产物
+exports/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
