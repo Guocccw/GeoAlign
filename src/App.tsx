@@ -16,6 +16,7 @@ import {
 } from './geo'
 import { exportAlignmentPackage } from './exportApi'
 import { PackageViewer } from './PackageViewer'
+import { SatelliteCompare } from './SatelliteCompare'
 import { refineAlignment } from './refineApi'
 import './index.css'
 
@@ -99,6 +100,8 @@ function App() {
   const [isExporting, setIsExporting] = useState(false)
   const [isRefining, setIsRefining] = useState(false)
   const [refinedTransform, setRefinedTransform] = useState<AffineTransform | null>(null)
+  const [showSatellite, setShowSatellite] = useState(false)
+  const [satelliteOffset, setSatelliteOffset] = useState({ east: 0, north: 0 })
   const [message, setMessage] = useState('导入 JPG 和 GeoJSON 后，至少添加 3 对同名控制点。')
   const imageCanvas = useRef<HTMLCanvasElement | null>(null)
   const geoCanvas = useRef<HTMLCanvasElement | null>(null)
@@ -112,6 +115,14 @@ function App() {
 
   const manualFit = useMemo(() => fitAffine(points), [points])
   const fit = useMemo(() => (refinedTransform ? evaluateAffine(points, refinedTransform) : manualFit), [manualFit, points, refinedTransform])
+  const exportTransform = useMemo(() => {
+    if (!fit) return null
+    return {
+      ...fit.transform,
+      c: fit.transform.c + satelliteOffset.east,
+      f: fit.transform.f + satelliteOffset.north,
+    }
+  }, [fit, satelliteOffset])
   const completePoints = points.filter((point) => point.image && point.world)
   const activePoint = points.find((point) => point.id === activePointId)
   const exportEpsg = projectionMode === 'epsg3857' ? '3857' : projectionMode === 'raw' ? '4326' : 'raw'
@@ -355,7 +366,7 @@ function App() {
   }
 
   const onExport = async () => {
-    if (!image || !fit) {
+    if (!image || !fit || !exportTransform) {
       setMessage('至少需要 3 对有效控制点才能导出配准包。')
       return
     }
@@ -363,13 +374,24 @@ function App() {
     setIsExporting(true)
     try {
       setMessage('正在调用后端导出配准包...')
+      const dx = satelliteOffset.east
+      const dy = satelliteOffset.north
+      const exportPoints = (dx || dy)
+        ? completePoints.map((point) => point.world ? { ...point, world: { x: point.world.x + dx, y: point.world.y + dy } } : point)
+        : completePoints
+      const exportSegments = (dx || dy)
+        ? (geoJson?.segments ?? []).map((segment) => ({
+            ...segment,
+            rings: segment.rings.map((ring) => ring.map((point) => ({ x: point.x + dx, y: point.y + dy }))),
+          }))
+        : (geoJson?.segments ?? [])
       await exportAlignmentPackage({
         imageFile: image.file,
         imageWidth: image.width,
         imageHeight: image.height,
-        controlPoints: completePoints,
-        segments: geoJson?.segments ?? [],
-        transform: fit.transform,
+        controlPoints: exportPoints,
+        segments: exportSegments,
+        transform: exportTransform,
         crs: exportEpsg === 'raw' ? 'unknown' : `EPSG:${exportEpsg}`,
       })
       setMessage('后端配准包已生成：包含原图、geoalign.json、world file 和蓝色线稿数据。请加载最新下载的 zip。')
@@ -601,6 +623,9 @@ function App() {
               <button type="button" onClick={onAutoRefine} disabled={!fit || !image || !geoJson || isRefining}>
                 {isRefining ? '精修中...' : '自动精修'}
               </button>
+              <button type="button" onClick={() => setShowSatellite(true)} disabled={!fit || !image}>
+                卫星比对 / 平移
+              </button>
               <button type="button" className="primary" onClick={onExport} disabled={!fit || !image || isExporting}>
                 {isExporting ? '导出中...' : '后端导出配准包'}
               </button>
@@ -720,6 +745,13 @@ function App() {
             <span>配准来源</span>
             <strong>{refinedTransform ? 'OpenCV 精修' : '手工控制点'}</strong>
           </div>
+          <div className="metric-row">
+            <span>卫星平移</span>
+            <strong>ΔE {formatNumber(satelliteOffset.east, 1)} / ΔN {formatNumber(satelliteOffset.north, 1)} m</strong>
+          </div>
+          {(satelliteOffset.east !== 0 || satelliteOffset.north !== 0) && (
+            <button type="button" className="ghost" onClick={() => setSatelliteOffset({ east: 0, north: 0 })}>卫星平移清零</button>
+          )}
           <label className="check-row">
             <input type="checkbox" checked={showWarpedGeoJson} onChange={(event) => setShowWarpedGeoJson(event.target.checked)} />
             <span>在平面图上叠加配准后的 GeoJSON</span>
@@ -767,6 +799,23 @@ function App() {
           </div>
         </div>
       </section>
+
+      {showSatellite && image && fit && (
+        <SatelliteCompare
+          image={image.element}
+          imageWidth={image.width}
+          imageHeight={image.height}
+          imageName={image.name}
+          transform={fit.transform}
+          focusBounds={geoJson?.bounds ?? null}
+          initialOffset={satelliteOffset}
+          onApply={(offset) => {
+            setSatelliteOffset(offset)
+            setMessage(`卫星平移已写入：ΔE ${formatNumber(offset.east, 1)} m / ΔN ${formatNumber(offset.north, 1)} m`)
+          }}
+          onClose={() => setShowSatellite(false)}
+        />
+      )}
 
       {activePoint && (
         <footer className="hintbar">
