@@ -43,6 +43,10 @@ export async function exportAlignmentPackage(request: BackendExportRequest) {
 }
 
 function parseDownloadFilename(disposition: string | null) {
+  const encodedMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encodedMatch?.[1]) {
+    return decodeURIComponent(encodedMatch[1])
+  }
   const match = disposition?.match(/filename="([^"]+)"/)
   return match?.[1]
 }

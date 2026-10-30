@@ -6,6 +6,7 @@ import io
 import os
 import zipfile
 from typing import Any
+from urllib.parse import quote
 
 import cv2
 import numpy as np
@@ -114,7 +115,7 @@ async def export_alignment(image: UploadFile = File(...), payload: str = Form(..
             )
         package.seek(0)
 
-        headers = {"Content-Disposition": f'attachment; filename="{stem}-geoalign.zip"'}
+        headers = {"Content-Disposition": build_content_disposition(f"{stem}-geoalign.zip")}
         return StreamingResponse(package, media_type="application/zip", headers=headers)
     except HTTPException:
         raise
@@ -315,3 +316,8 @@ def worldfile_extension(image_extension: str) -> str:
 
 def safe_filename(filename: str) -> str:
     return "".join(char for char in filename if char not in '/\\:*?"<>|').strip() or "image.jpg"
+
+
+def build_content_disposition(filename: str) -> str:
+    encoded = quote(filename, safe="")
+    return f"attachment; filename*=UTF-8''{encoded}"
